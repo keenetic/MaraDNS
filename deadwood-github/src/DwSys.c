@@ -35,6 +35,19 @@
 #include "version.h"
 #include "DwBlockHash.h"
 
+#include <sys/syscall.h>
+#include <sys/prctl.h>
+#include <linux/capability.h>
+#ifndef CAP_NET_ADMIN
+#define CAP_NET_ADMIN  12
+#endif
+#if !defined(capset)
+int capset(cap_user_header_t hdrp, const cap_user_data_t datap)
+{
+    return syscall(SYS_capset, hdrp, datap);
+}
+#endif
+
 /* Timestamp */
 int64_t the_time = 0;
 
@@ -785,6 +798,11 @@ void sandbox() {
                 dw_fatal("chroot() failed");
         }
 #endif /* QNX */
+
+        if (prctl(PR_SET_KEEPCAPS, 1, 0, 0, 0) == -1) {
+            dw_fatal("prctl(PR_SET_KEEPCAPS) failed");
+        }
+
         if(setgroups(1,&g) == -1) {
                 dw_fatal("setgroups() failed");
         }
@@ -796,6 +814,29 @@ void sandbox() {
         }
         if(setuid(0) == 0) {
                 dw_fatal("Your kernel\'s setuid() is broken");
+        }
+
+        /* For SO_MARK */
+
+        {
+            struct __user_cap_header_struct header = {
+              .version = _LINUX_CAPABILITY_VERSION_3,
+            };
+            struct __user_cap_data_struct caps[2];
+
+            memset(&caps, 0, sizeof(caps));
+
+            caps[0].effective |= 1 << CAP_NET_ADMIN;
+            caps[0].permitted |= 1 << CAP_NET_ADMIN;
+            caps[0].inheritable |= 1 << CAP_NET_ADMIN;
+
+            if (capset(&header, caps) != 0) {
+              dw_fatal("capset(CAP_DAC_READ_SEARCH) failed");
+            }
+        }
+
+        if (prctl(PR_SET_KEEPCAPS, 0, 0, 0, 0) == -1) {
+          dw_fatal("prctl(PR_SET_KEEPCAPS) failed");
         }
 
         if(c != 0) {

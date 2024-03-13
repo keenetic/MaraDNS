@@ -28,6 +28,9 @@ extern dw_str *key_s[];
 extern dw_str *key_d[];
 extern int32_t key_n[];
 
+/* Parameters set in DwSocket.h */
+extern uint32_t so_mark;
+
 /* Parameters set in DwSys.c */
 extern int64_t the_time;
 extern dwr_rg *rng_seed;
@@ -180,6 +183,13 @@ SOCKET setup_server(sockaddr_all_T *server, ip_addr_T *addr) {
         } else {
                 return INVALID_SOCKET;
         }
+
+        if (so_mark != 0) {
+            uint32_t val = so_mark;
+            if (setsockopt(s, SOL_SOCKET, SO_MARK, (const char *)&val, sizeof(val)) < 0)
+                return INVALID_SOCKET;
+        }
+
         return s;
 }
 
