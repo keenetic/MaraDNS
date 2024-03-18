@@ -726,6 +726,11 @@ void try_forward_local_udp_packet(SOCKET sock, int32_t local_id,
         }
 }
 
+static const char RESPONSE_[] =
+"\xb4\xfc\x01\x00\x00\x01\x00\x00\x00\x00\x00\x00\x08\x73\x65\x72" \
+"\x76\x66\x61\x69\x6c\x07\x69\x6e\x76\x61\x6c\x69\x64\x00\x00\x01" \
+"\x00\x01";
+
 /* Get and process a local DNS request */
 void get_local_udp_packet(SOCKET sock) {
         unsigned char packet[522];
@@ -866,6 +871,14 @@ void get_local_udp_packet(SOCKET sock) {
         if(query == 0) {
                 goto catch_get_local_udp_packet;
         }
+
+        if (!strcmp((const char *)query->str, "servfail.invalid")) {
+                sendto(sock,(void *)RESPONSE_,
+                            sizeof(RESPONSE_),0,(struct sockaddr *)&from_ip,
+                             sizeof(struct sockaddr_in));
+                goto catch_get_local_udp_packet;
+        }
+
         /* Is answer in cache? */
         if(get_reply_from_cache(query, &client, sock, local_id, 0, -1,
                         orig_query, &from_ip, packet, len) == 1) {
