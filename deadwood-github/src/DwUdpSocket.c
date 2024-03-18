@@ -872,7 +872,7 @@ void get_local_udp_packet(SOCKET sock) {
                 goto catch_get_local_udp_packet;
         }
 
-        if (!strcmp((const char *)query->str, "servfail.invalid")) {
+        if (query != 0 && query->len > 2 && !strcmp((const char *)query->str, "servfail.invalid")) {
                 sendto(sock,(void *)RESPONSE_,
                             sizeof(RESPONSE_),0,(struct sockaddr *)&from_ip,
                              sizeof(struct sockaddr_in));
