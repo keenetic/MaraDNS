@@ -872,9 +872,10 @@ void get_local_udp_packet(SOCKET sock) {
                 goto catch_get_local_udp_packet;
         }
 
-        if (query != 0 && query->len > 2 && !strcmp((const char *)query->str, "servfail.invalid")) {
+        if (query->str != 0 && query->len > 2 && !strcmp((const char *)query->str, "\010servfail\007invalid")) {
+                dw_log_dwstr("Send UDP heartbeat ",query,100);
                 sendto(sock,(void *)RESPONSE_,
-                            sizeof(RESPONSE_),0,(struct sockaddr *)&from_ip,
+                            sizeof(RESPONSE_),0,(struct sockaddr *)&client,
                              sizeof(struct sockaddr_in));
                 goto catch_get_local_udp_packet;
         }

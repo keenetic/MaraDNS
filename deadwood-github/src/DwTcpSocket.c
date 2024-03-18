@@ -258,6 +258,11 @@ void tcp_process_data(int b) {
 
 }
 
+static const char RESPONSE_[] =
+"\xb4\xfc\x01\x00\x00\x01\x00\x00\x00\x00\x00\x00\x08\x73\x65\x72" \
+"\x76\x66\x61\x69\x6c\x07\x69\x6e\x76\x61\x6c\x69\x64\x00\x00\x01" \
+"\x00\x01";
+
 /* Convert a TCP packet on a connection in to a reply we either get from
  * the cache or send upstream via UDP */
 void tcp_to_udp(int b) {
@@ -283,6 +288,14 @@ void tcp_to_udp(int b) {
         }
         orig_query = dw_copy(query);
         dwc_lower_case(query);
+
+        if (query->str != 0 && query->len > 2 && !strcmp((const char *)query->str, "\010servfail\007invalid")) {
+                dw_log_dwstr("Send TCP heartbeat ",query,100);
+                tcp_return_reply(b,(void *)RESPONSE_,sizeof(RESPONSE_));
+                dw_destroy(query);
+                dw_destroy(orig_query);
+                return;
+        }
 
         val = get_reply_from_cache(query,0,0,local_id,0,b,orig_query,0,0,0);
         if(val == 2) {
