@@ -252,8 +252,35 @@ int make_remote_connection(int32_t n, unsigned char *packet, int len,
 
         /* Bind to source port; "connect" to remote server; send packet */
         if ((do_random_bind(s,addr.len) == -1) ||
-            (connect(s, (struct sockaddr *)&server, inet_len) == -1) ||
-            (send(s,packet,len,0) < 0)) {
+            (connect(s, (struct sockaddr *)&server, inet_len) == -1)) {
+                closesocket(s);
+                return -1;
+        }
+
+        if(packet[10] == 0 && packet[11] == 0) {
+            char buf[1550];
+            dw_log_string("Send EDNS", 0);
+
+            memcpy(buf, packet, len);
+            buf[11] = 1;
+            buf[len + 0] = 0;
+            buf[len + 1] = 0;
+            buf[len + 2] = 41; /* EDNS OPT(0) */
+            buf[len + 3] = 0x04; /* buffer 1232 bytes as per https://www.dnsflagday.net/2020/ */
+            buf[len + 4] = 0xd0;
+            buf[len + 5] = 0;
+            buf[len + 6] = 0;
+            buf[len + 7] = 0;
+            buf[len + 8] = 0;
+            buf[len + 9] = 0;
+            buf[len + 10] = 0;
+
+            if(send(s,buf,len+11,0) < 0) {
+                closesocket(s);
+                return -1;
+            }
+        } else
+        if(send(s,packet,len,0) < 0) {
                 closesocket(s);
                 return -1;
         }
@@ -356,6 +383,7 @@ int make_new_udp_connect(int b, unsigned char *a, int len, int num_alloc) {
         }
         rem[b].query = dw_get_dname_type(a,12,len);
         dwc_lower_case(rem[b].query);
+        dw_log_dwstr("Make new connect for ", rem[b].query, 128);
         rem[b].local = dw_malloc(num_alloc * sizeof(local_T *));
         if(rem[b].local == 0) {
                 return -1;
@@ -582,6 +610,7 @@ int get_reply_from_cache(dw_str *query, sockaddr_all_T *client,
                 return 1;
         } else if(type == RR_AAAA) { /* Blocklist affects both IPv4 and IPv6 */
                 dw_str *value_ipv4 = 0; /* IPv4 record in cache (A record */
+                dw_log_string("got AAAA", 100);
                 if(dw_put_u16(query, RR_A, -3) == -1) {
                         goto catch_get_reply_from_cache;
                 }
@@ -598,6 +627,7 @@ int get_reply_from_cache(dw_str *query, sockaddr_all_T *client,
         }
 
         if(blocklisted == 0) {
+                dw_log_string("not BL", 100);
                 dwc_process(cache,query,3); /* RR rotation, TTL aging, etc. */
                 value = dwh_get(cache,query,resurrect,1);
                 if(value == 0) {
@@ -607,6 +637,7 @@ int get_reply_from_cache(dw_str *query, sockaddr_all_T *client,
                 cache_type = dw_fetch_u8(value,-1);
         }
         if(cache_type == TYPE_BLOCKLIST_ENTRY || blocklisted == 1) {
+                dw_log_string("BL", 100);
                 if(tcp_num != -1 || orig_packet == 0) {
                         ret = 2;
                         goto catch_get_reply_from_cache;
@@ -636,8 +667,10 @@ int get_reply_from_cache(dw_str *query, sockaddr_all_T *client,
         }
         if(cache_type != TYPE_TRUNCATED &&
                         cache_type != TYPE_TRUNCATED_NXDOMAIN) {
+                dw_log_string("compress", 100);
                 comp = dwc_compress(query,value);
         } else {
+                dw_log_string("zap", 100);
                 /* Immediately zap truncated from cache when fetched */
                 dwh_zap(cache,query,0,1);
                 if(client == 0) { /* DNS-over-TCP */
@@ -648,8 +681,11 @@ int get_reply_from_cache(dw_str *query, sockaddr_all_T *client,
         }
 
         if(comp == 0) {
+                dw_log_string("no comp", 100);
                 goto catch_get_reply_from_cache;
         }
+
+        dw_log_number("comp_len ", comp->len, "", 100);
 
         if(comp->len == 7) { /* Empty packet; workaround */
                 dw_log_string("Warning: Removing empty packet from cache",11);
@@ -733,7 +769,7 @@ static const char RESPONSE_[] =
 
 /* Get and process a local DNS request */
 void get_local_udp_packet(SOCKET sock) {
-        unsigned char packet[522];
+        unsigned char packet[1522];
         int len = 0;
         sockaddr_all_T client;
         socklen_t c_len = 0;
@@ -744,12 +780,12 @@ void get_local_udp_packet(SOCKET sock) {
         int_fast32_t qtype = 0;
         int in_blocked_hosts_hash = 0;
 #ifdef VALGRIND_NOERRORS
-        memset(packet,0,522);
+        memset(packet,0,1522);
 #endif /* VALGRIND_NOERRORS */
 
         c_len = sizeof(client);
         make_socket_nonblock(sock); /* Linux bug workaround */
-        len = recvfrom(sock,(void *)packet,520,0,(struct sockaddr *)&client,
+        len = recvfrom(sock,(void *)packet,1520,0,(struct sockaddr *)&client,
                        &c_len);
 
         if(len < 12) {
@@ -963,16 +999,20 @@ int cache_dns_reply(unsigned char *packet, int count, int b, int truncated) {
         dw_log_dwstr("Caching a reply for query ",question,1000);
         if((packet[3] & 0x0f) == 2) { /* Server FAIL */
                 ret = -1; /* Bad return value; do not cache */
+                dw_log_string("Servfail",128);
                 goto catch_cache_dns_reply;
         } else if((packet[3] & 0x0f) == 3) { /* Name error/NXDOMAIN */
+                dw_log_string("NXDOMAIN",128);
                 is_nxdomain = 1;
         }
         if(truncated == 1) {
+                dw_log_string("truncated",128);
                 is_nxdomain += 3;
                 answer = dw_create(2);
                 if(dw_put_u8(answer, is_nxdomain, 0) == -1) {
                         goto catch_cache_dns_reply;
                 }
+                dw_log_dwstr("answer ", answer, 128);
                 dwh_add(cache,question,answer,7,1);
                 ret = 1;
         } else {
@@ -986,6 +1026,7 @@ int cache_dns_reply(unsigned char *packet, int count, int b, int truncated) {
                         goto catch_cache_dns_reply;
                 }
                 ancount = dw_cachepacket_to_ancount(answer);
+                dw_log_number("ancount ", ancount, "",128);
                 if(ancount == 0) {
                         ancount = 32; /* Correct negative answer caching */
                 }
@@ -1015,6 +1056,7 @@ int cache_dns_reply(unsigned char *packet, int count, int b, int truncated) {
                  * what kind of packet we got upstream (so we know how to
                  * continue)
                  */
+                dw_log_string("try cache reply",128);
                 ret = dwx_cache_reply(cache,question,decomp,ttl,b);
         }
 
@@ -1028,6 +1070,7 @@ catch_cache_dns_reply:
         if(decomp != 0) {
                 dw_destroy(decomp);
         }
+        dw_log_number("result ", ret, "",128);
         return ret;
 }
 
@@ -1386,11 +1429,11 @@ int get_rem_udp_packet_core(unsigned char *a, ssize_t count,
 /* Get and process a remote DNS packet (one sent upstream to us) */
 void get_remote_udp_packet(int b, SOCKET sock) {
         ssize_t count;
-        unsigned char a[520];
+        unsigned char a[1520];
         int l = 0, kill = 1, core_ret = 0;
 
-        count = recv(sock,a,514,0);
-        if(count < 12 || count > 512) {
+        count = recv(sock,a,1514,0);
+        if(count < 12 || count > 1512) {
                 return;
         }
         a[2] |= 0x80; /* Flag this as an answer (just in case they didn't) */

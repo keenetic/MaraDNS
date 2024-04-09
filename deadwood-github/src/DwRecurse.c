@@ -2392,6 +2392,8 @@ int dwx_cache_reply(dw_hash *cache, dw_str *query, dw_str *in, int32_t ttl,
                 goto catch_dwx_cache_reply;
         }
 
+        dw_log_dwstr("Unknown answer for ", query,128);
+
         /* Anything else is an error */
         ret = -1;
 
@@ -2851,12 +2853,15 @@ ip_addr_T dwx_ns_getip(dw_str *list, dwr_rg *rng, int b) {
         rr = dwx_nsref_type(a, &offset, list);
 
         if(rr == RR_A) {
+                dw_log_string("NS A",128);
                 addr = dwx_ns_getip_ipv4(list,offset);
 #ifndef NOIP6
         } else if(rr == RR_AAAA) {
+                dw_log_string("NS AAAA",128);
                 addr = dwx_ns_getip_ipv6(list,offset);
 #endif /* NOIP6 */
         } else if(rr == RR_NS) {
+                dw_log_string("NS glueless",128);
                 addr = dwx_ns_getip_glueless(list,offset);
         } else {
                 goto catch_dwx_ns_getip;
@@ -2865,6 +2870,9 @@ ip_addr_T dwx_ns_getip(dw_str *list, dwr_rg *rng, int b) {
         if(type == TYPE_UPSTREAM_REFER) {
                 addr.flags = 1;
         }
+
+        dw_log_ip("NS IP ",&addr,128);
+
         return addr;
 
 catch_dwx_ns_getip:

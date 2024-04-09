@@ -1037,6 +1037,8 @@ dw_str *get_upstream_ns(dw_str *query, int connection_number) {
                 rem[connection_number].is_upstream = 1;
         }
 
+        dw_log_dwstr("Get upstream NS list: ",q,100);
+
         /* Return the list of NS servers */
         return q;
 }
@@ -1048,10 +1050,12 @@ ip_addr_T get_upstream_ip(dw_str *query, int b) {
         ip_addr_T addr = {0,{0,0},0,0};
 
         if(rem[b].ns == 0) {
+                dw_log_string("Empty NS", 128);
                 rem[b].ns = get_upstream_ns(query,b);
         }
 
         if(rem[b].ns == 0) {
+                dw_log_string("No addr", 128);
                 return addr; /* Error; returns invalid addr */
         }
 
