@@ -404,6 +404,7 @@ void dwm_init_mararc() {
         key_n[DWM_N_min_ttl] = 60;
         key_n[DWM_N_maxttl_reduce_labels] = 3;
         key_n[DWM_N_so_mark] = 0;
+        key_n[DWM_N_ipv4_only] = 0;
 	key_n[DWM_N_rfc8482] = 1;
 	key_n[DWM_N_allow_block_hash_zero_key] = 0;
 }

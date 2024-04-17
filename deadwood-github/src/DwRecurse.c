@@ -56,6 +56,8 @@ extern int maxttl_reduce_labels;
 /* Maximum number of remote connections */
 extern int_fast32_t maxprocs;
 
+extern int ipv4_only;
+
 #ifdef OTHER_STUFF
 /* Show a single character on the standard output, escaping the
  * character if it's not printable ASCII */
@@ -2810,13 +2812,26 @@ int dwx_choose_ns(int b, int count, dwr_rg *rng, dw_str *list) {
                         type = dwx_nsref_type(out,&offset,list);
                         if(type == RR_A
 #ifndef NOIP6
-                        || type == RR_AAAA
+                        || (!ipv4_only && type == RR_AAAA)
 #endif /* NOIP6 */
                         ) {
                                 break;
                         }
                 }
-        } else {
+        } else
+        if (ipv4_only) {
+            out = rem[b].current_ns;
+
+            for(a = 0; a < 5; a++) {
+                out = (out + 173) % count;
+                type = dwx_nsref_type(out,&offset,list);
+
+                if (type == RR_A) {
+                    break;
+                }
+            }
+        } else
+        {
                 out = rem[b].current_ns;
                 out = (out + 173) % count;
         }

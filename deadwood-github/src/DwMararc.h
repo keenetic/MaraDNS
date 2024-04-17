@@ -78,13 +78,14 @@
 #define DWM_N_rfc8482 32
 #define DWM_N_allow_block_hash_zero_key 33
 #define DWM_N_so_mark 34
+#define DWM_N_ipv4_only 35
 
 /* Number of string parameters in the mararc file */
 #define KEY_S_COUNT 10
 /* Number of dictionary parameters in the mararc file */
 #define KEY_D_COUNT 4
 /* Number of numeric parameters in the mararc file */
-#define KEY_N_COUNT 35
+#define KEY_N_COUNT 36
 
 #ifndef MINGW
 /* Location of files we read when we run execfile("foo") */
@@ -175,6 +176,7 @@ char *key_n_names[KEY_N_COUNT + 1] = {
                                       * hash file to have a HalfSipHash key
                                       * of \0\0\0\0\0\0\0\0 */
          "so_mark",
+         "ipv4_only",
         0 };
 
 #endif /* MARARC_C */

@@ -62,6 +62,7 @@ extern dw_hash *cache;
 int_fast32_t maxprocs = 1024;
 int max_tcp_procs = 8;
 uint32_t so_mark = 0;
+int ipv4_only = 0;
 #ifndef FALLBACK_TIME
 int timeout_seconds = 1;
 int timeout_seconds_tcp = 4;
@@ -495,7 +496,9 @@ void process_numeric_mararc_params() {
         maxprocs =        get_key_n(DWM_N_maxprocs,       8,8388608,-1);
         max_tcp_procs =   get_key_n(DWM_N_max_tcp_procs,  4,1024,-1);
         so_mark =         get_key_n(DWM_N_so_mark,        0,INT32_MAX,0);
+        ipv4_only =       get_key_n(DWM_N_ipv4_only,      0,1,0);
         dw_log_number("somark ",so_mark," ",1);
+        dw_log_number("ipv4 only ", ipv4_only, "", 128);
 #ifndef FALLBACK_TIME
         timeout_seconds = get_key_n(DWM_N_timeout_seconds,1,300,-1);
         timeout_seconds_tcp = get_key_n(DWM_N_timeout_seconds_tcp,1,300,-1);
