@@ -48,6 +48,9 @@ int capset(cap_user_header_t hdrp, const cap_user_data_t datap)
 }
 #endif
 
+#include <syslog.h>
+#include <stdarg.h>
+
 /* Timestamp */
 int64_t the_time = 0;
 
@@ -97,6 +100,8 @@ void dw_log_init() {
         dw_win_time();
         fprintf(LOG,"%s\n","==Deadwood started==");
 #endif /* MINGW */
+
+        openlog("deadwood", LOG_CONS, LOG_DAEMON);
         return;
 }
 
@@ -110,6 +115,34 @@ void dw_log_close() {
         return;
 }
 
+char syslog_buf[1024];
+int syslog_offset = 0;
+
+void syslog_printf(const char *fmt, ...) {
+    va_list ap;
+
+    if (syslog_offset == sizeof(syslog_buf)) {
+        return;
+    }
+
+    va_start(ap, fmt);
+    syslog_offset += vsnprintf(
+        syslog_buf + syslog_offset,
+        sizeof(syslog_buf) - syslog_offset, fmt, ap);
+    va_end(ap);
+}
+
+void syslog_flush() {
+    if (syslog_offset == 0) {
+        return;
+    }
+
+    syslog(LOG_INFO, "%s", syslog_buf);
+
+    syslog_offset = 0;
+    syslog_buf[0] = '\0';
+}
+
 /* Log a string followed by the contents of a DwStr object ; private */
 void dw_log_dwstr_p(char *s1, dw_str *s2, int min_log_level) {
         int32_t ll = key_n[DWM_N_verbose_level];
@@ -120,7 +153,7 @@ void dw_log_dwstr_p(char *s1, dw_str *s2, int min_log_level) {
         }
 
 #ifndef MINGW
-        printf("%s",s1);
+        syslog_printf("%s",s1);
 #else /* MINGW */
         dw_win_time();
         fprintf(LOG,"%s",s1);
@@ -128,7 +161,7 @@ void dw_log_dwstr_p(char *s1, dw_str *s2, int min_log_level) {
 
         if(s2 == 0) {
 #ifndef MINGW
-                printf("(null dw_str)");
+                syslog_printf("(null dw_str)");
 #else /* MINGW */
                 fprintf(LOG,"(null dw_str)");
 #endif /* MINGW */
@@ -140,25 +173,25 @@ void dw_log_dwstr_p(char *s1, dw_str *s2, int min_log_level) {
                 if(q >= '.' && q <= '~' /* Last ASCII char */ && q != '\\'
                    && q != '{' && q != '}') {
 #ifndef MINGW
-                        printf("%c",q);
+                        syslog_printf("%c",q);
 #else /* MINGW */
                         fprintf(LOG,"%c",q);
 #endif /* MINGW */
                 } else if(q == '-') {
 #ifndef MINGW
-                        printf("%c",q);
+                        syslog_printf("%c",q);
 #else /* MINGW */
                         fprintf(LOG,"%c",q);
 #endif /* MINGW */
                 } else if(q == ' ') {
 #ifndef MINGW
-                        printf("{%c}",q);
+                        syslog_printf("{%c}",q);
 #else /* MINGW */
                         fprintf(LOG,"{%c}",q);
 #endif /* MINGW */
                 } else {
 #ifndef MINGW
-                        printf("\\%03o",q);
+                        syslog_printf("\\%03o",q);
 #else /* MINGW */
                         fprintf(LOG,"\\%03o",q);
 #endif /* MINGW */
@@ -172,7 +205,8 @@ void dw_log_ip_p(ip_addr_T *ip) {
 
         if(ip == 0) {
 #ifndef MINGW
-                printf("%s","(null IP)\n");
+                syslog_printf("%s","(null IP)");
+                syslog_flush();
 #else /* MINGW */
                 fprintf(LOG,"%s","(null IP)\n");
 #endif /* MINGW */
@@ -182,13 +216,13 @@ void dw_log_ip_p(ip_addr_T *ip) {
         if(ip->len == 4) {
                 for(counter = 0; counter < 3; counter++) {
 #ifndef MINGW
-                        printf("%d.",ip->ip[counter]);
+                        syslog_printf("%d.",ip->ip[counter]);
 #else /* MINGW */
                         fprintf(LOG,"%d.",ip->ip[counter]);
 #endif /* MINGW */
                 }
 #ifndef MINGW
-                printf("%d ",ip->ip[3]);
+                syslog_printf("%d ",ip->ip[3]);
 #else /* MINGW */
                 fprintf(LOG,"%d ",ip->ip[3]);
 #endif /* MINGW */
@@ -196,20 +230,20 @@ void dw_log_ip_p(ip_addr_T *ip) {
         } else if(ip->len == 16) {
                 for(counter = 0; counter < 15; counter++) {
 #ifndef MINGW
-                        printf("%02x:",ip->ip[counter]);
+                        syslog_printf("%02x:",ip->ip[counter]);
 #else /* MINGW */
                         fprintf(LOG,"%02x:",ip->ip[counter]);
 #endif /* MINGW */
                 }
 #ifndef MINGW
-                printf("%02x ",ip->ip[15]);
+                syslog_printf("%02x ",ip->ip[15]);
 #else /* MINGW */
                 fprintf(LOG,"%02x ",ip->ip[15]);
 #endif /* MINGW */
 #endif /* NOIP6 */
         } else {
 #ifndef MINGW
-                printf("%s%d","IP of length ",ip->len);
+                syslog_printf("%s%d","IP of length ",ip->len);
 #else /* MINGW */
                 fprintf(LOG,"%s%d","IP of length ",ip->len);
 #endif /* MINGW */
@@ -224,7 +258,7 @@ void dw_log_ip(char *string, ip_addr_T *ip, int min_log_level) {
         }
 
 #ifndef MINGW
-        printf("%s ",string);
+        syslog_printf("%s ",string);
 #else /* MINGW */
         dw_win_time();
         fprintf(LOG,"%s ",string);
@@ -233,11 +267,10 @@ void dw_log_ip(char *string, ip_addr_T *ip, int min_log_level) {
         dw_log_ip_p(ip);
 
 #ifndef MINGW
-        printf("%s","\n");
+        syslog_flush();
 #else /* MINGW */
         fprintf(LOG,"%s","\n");
 #endif /* MINGW */
-
 }
 
 /* Log a string followed by the contents of a DwStr object */
@@ -252,7 +285,7 @@ void dw_log_dwstr(char *s1, dw_str *s2, int min_log_level) {
         /* OK, add a newline */
 
 #ifndef MINGW
-        printf("%s","\n");
+        syslog_flush();
 #else /* MINGW */
         fprintf(LOG,"%s","\n");
 #endif /* MINGW */
@@ -268,7 +301,7 @@ void dw_log_dwstrip(char *s1, dw_str *s2, int min_log_level) {
         }
 
 #ifndef MINGW
-        printf("%s",s1);
+        syslog_printf("%s",s1);
 #else /* MINGW */
         fprintf(LOG,"%s",s1);
 #endif /* MINGW */
@@ -276,7 +309,7 @@ void dw_log_dwstrip(char *s1, dw_str *s2, int min_log_level) {
         if(s2 != 0 && s2->str != 0) {
                 for(a=0;a<s2->len;a++) {
 #ifndef MINGW
-                        printf("%d.",*(s2->str + a));
+                        syslog_printf("%d.",*(s2->str + a));
 #else /* MINGW */
                         fprintf(LOG,"%d.",*(s2->str + a));
 #endif /* MINGW */
@@ -286,7 +319,7 @@ void dw_log_dwstrip(char *s1, dw_str *s2, int min_log_level) {
         /* OK, add a newline */
 
 #ifndef MINGW
-        printf("%s","\n");
+        syslog_flush();
 #else /* MINGW */
         fprintf(LOG,"%s","\n");
 #endif /* MINGW */
@@ -305,7 +338,8 @@ void dw_log_dwstr_str(char *s1, dw_str *s2, char *s3, int min_log_level) {
         /* OK, add a newline */
 
 #ifndef MINGW
-        printf("%s\n",s3);
+        syslog_printf("%s",s3);
+        syslog_flush();
 #else /* MINGW */
         fprintf(LOG,"%s\n",s3);
 #endif /* MINGW */
@@ -322,7 +356,8 @@ void dw_log_string(char *string, int min_log_level) {
         }
 
 #ifndef MINGW
-        printf("%s\n",string);
+        syslog_printf("%s",string);
+        syslog_flush();
 #else /* MINGW */
         dw_win_time();
         fprintf(LOG,"%s\n",string);
@@ -340,7 +375,8 @@ void dw_log_3strings(char *s1, char *s2, char *s3, int min_log_level) {
         }
 
 #ifndef MINGW
-        printf("%s%s%s\n",s1,s2,s3);
+        syslog_printf("%s%s%s",s1,s2,s3);
+        syslog_flush();
 #else /* MINGW */
         dw_win_time();
         fprintf(LOG,"%s%s%s\n",s1,s2,s3);
@@ -358,7 +394,8 @@ void dw_log_number(char *s1, int number, char *s2, int min_log_level) {
         }
 
 #ifndef MINGW
-        printf("%s%d%s\n",s1,number,s2);
+        syslog_printf("%s%d%s",s1,number,s2);
+        syslog_flush();
 #else /* MINGW */
         dw_win_time();
         fprintf(LOG,"%s%d%s\n",s1,number,s2);
@@ -374,7 +411,8 @@ void dw_log_hex(char *s1, uint32_t number, int min_log_level) {
         }
 
 #ifndef MINGW
-        printf("%s%x\n",s1,number);
+        syslog_printf("%s%x",s1,number);
+        syslog_flush();
 #else /* MINGW */
         dw_win_time();
         fprintf(LOG,"%s%x\n",s1,number);
@@ -386,7 +424,8 @@ void dw_log_hex(char *s1, uint32_t number, int min_log_level) {
 void dw_alog_3strings(char *s1, char *s2, char *s3) {
 
 #ifndef MINGW
-        printf("%s%s%s\n",s1,s2,s3);
+        syslog_printf("%s%s%s",s1,s2,s3);
+        syslog_flush();
 #else /* MINGW */
         dw_win_time();
         fprintf(LOG,"%s%s%s\n",s1,s2,s3);
@@ -401,7 +440,8 @@ void dw_alog_3strings(char *s1, char *s2, char *s3) {
 void dw_alog_number(char *s1, int number, char *s2) {
 
 #ifndef MINGW
-        printf("%s%d %s\n",s1,number,s2);
+        syslog_printf("%s%d %s",s1,number,s2);
+        syslog_flush();
 #else /* MINGW */
         dw_win_time();
         fprintf(LOG,"%s%d %s\n",s1,number,s2);
@@ -414,14 +454,16 @@ void dw_alog_number(char *s1, int number, char *s2) {
 void dw_fatal(char *why) {
         if(why != 0) {
 #ifndef MINGW
-                printf("Fatal: %s\n",why);
+                syslog_printf("Fatal: %s",why);
+                syslog_flush();
 #else /* MINGW */
                 dw_win_time();
                 fprintf(LOG,"Fatal: %s\n",why);
 #endif /* MINGW */
         } else {
 #ifndef MINGW
-                printf("Fatal: Unknown fatal error\n");
+                syslog_printf("Fatal: Unknown fatal error");
+                syslog_flush();
 #else /* MINGW */
                 dw_win_time();
                 fprintf(LOG,"Fatal: Unknown fatal error\n");

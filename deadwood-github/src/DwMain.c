@@ -127,6 +127,7 @@ int dw_svc_main(int argc, char **argv) {
 #endif /* MINGW */
         char *a = 0, *b = 0;
         int c = 0;
+        dw_log_init();
         dw_alog_3strings("Deadwood version ",VERSION,"");
         if(argv[0] == 0) {
                 dw_alog_3strings("Don't invoke this program without ",
